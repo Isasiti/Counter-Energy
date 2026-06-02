@@ -21,7 +21,8 @@ const data = [
 ];
 
 export function Dashboard() {
-  const usuarioCedula = sessionStorage.getItem("usuarioCedula") || "";
+  const usuarioCedula = localStorage.getItem("usuarioCedula") || "";
+  const usuarioNombre = localStorage.getItem("usuarioNombre") || "Usuario";
   const [totalKwh, setTotalKwh] = useState(0);
   const [totalPrice, setTotalPrice] = useState(0);
 
@@ -60,8 +61,8 @@ export function Dashboard() {
         </div>
         <div className="relative z-10 p-8 sm:p-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
           <div>
-            <h2 className="text-3xl font-bold mb-2">¡Hola,Isaac!</h2>
-            <p className="text-emerald-100 max-w-md">Tu hogar inteligente está funcionando eficientemente hoy. Has ahorrado un 12% de energía esta semana.</p>
+            <h2 className="text-3xl font-bold mb-2">¡Hola, {usuarioNombre}!</h2>
+            <p className="text-emerald-100 max-w-md">Tu hogar inteligente está funcionando eficientemente hoy.Gracias Por elegir nuestra solución.</p>
           </div>
           <div className="flex gap-4">
             <div className="bg-white/20 backdrop-blur-md rounded-2xl p-4 flex flex-col items-center justify-center min-w-24 border border-white/30 shadow-sm">

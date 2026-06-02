@@ -23,8 +23,9 @@ export function Login({ onLogin }: { onLogin: () => void }) {
       if (!response.ok) {
         throw new Error(data.error || "Credenciales incorrectas");
       }
-      sessionStorage.setItem("usuarioCedula", data.cedula);
-      sessionStorage.setItem("usuarioEmail", data.correoelectronico);
+      localStorage.setItem("usuarioCedula", data.cedula);
+      localStorage.setItem("usuarioEmail", data.correoelectronico);
+      localStorage.setItem("usuarioNombre", cedula);
       onLogin();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al iniciar sesión");

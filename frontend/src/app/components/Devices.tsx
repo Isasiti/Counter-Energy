@@ -14,6 +14,7 @@ import {
   Loader2,
   type LucideIcon,
 } from "lucide-react";
+import { getDevices, createDevice, updateDevice, deleteDevice as apiDeleteDevice } from "../../lib/devicesApi";
 import { clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 import {
@@ -40,21 +41,9 @@ type DispositivoForm = {
   nombre: string;
   modelo: string;
   device_id: string;
-  consumo: string;
 };
 
-const emptyForm: DispositivoForm = { nombre: "", modelo: "", device_id: "", consumo: "0" };
-
-const ISAAC_TEST_DEVICE_ID = 999999;
-
-const isaacTestDevice: Dispositivo = {
-  id: ISAAC_TEST_DEVICE_ID,
-  usuario_cedula: "isaac",
-  nombre: "Dispositivo Cambiante",
-  modelo: "network",
-  device_id: "test-cambiante",
-  consumo: 80,
-};
+const emptyForm: DispositivoForm = { nombre: "", modelo: "", device_id: "" };
 
 const iconByModelo: Record<string, LucideIcon> = {
   light: Lightbulb,
@@ -75,7 +64,7 @@ function getIcon(modelo: string): LucideIcon {
 }
 
 export function Devices() {
-  const usuarioCedula = sessionStorage.getItem("usuarioCedula") || "";
+  const usuarioCedula = localStorage.getItem("usuarioCedula") || "";
   const [devices, setDevices] = useState<Dispositivo[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
@@ -87,73 +76,11 @@ export function Devices() {
   const [form, setForm] = useState<DispositivoForm>(emptyForm);
   const [saving, setSaving] = useState(false);
   const [co2Message, setCo2Message] = useState<string | null>(null);
-  const [testDeviceData, setTestDeviceData] = useState<{
-    irms: number;
-    potencia: number;
-    rele: boolean;
-  } | null>(null);
-  const [testDeviceLoading, setTestDeviceLoading] = useState(false);
-  const [testDeviceControlling, setTestDeviceControlling] = useState(false);
 
   useEffect(() => {
     fetchDevices();
   }, []);
 
-  useEffect(() => {
-    if (usuarioCedula.toLowerCase() !== "isaac") {
-      return;
-    }
-
-    fetchTestDeviceStatus();
-    const interval = setInterval(fetchTestDeviceStatus, 2000);
-    return () => clearInterval(interval);
-  }, [usuarioCedula]);
-
-  const fetchTestDeviceStatus = async () => {
-    setTestDeviceLoading(true);
-    try {
-      const response = await fetch("http://localhost:3000/api/test-device/status", {
-        headers: {
-          "x-api-key": "1027801124J",
-        },
-      });
-      if (!response.ok) {
-        throw new Error("No se pudo obtener el estado del dispositivo de prueba");
-      }
-      const data = await response.json();
-      setTestDeviceData(data);
-      setDeviceStatuses((prev) => ({ ...prev, [ISAAC_TEST_DEVICE_ID]: data.rele }));
-    } catch {
-      setTestDeviceData(null);
-      setDeviceStatuses((prev) => ({ ...prev, [ISAAC_TEST_DEVICE_ID]: null }));
-    } finally {
-      setTestDeviceLoading(false);
-    }
-  };
-
-  const controlTestDevice = async (action: boolean) => {
-    setTestDeviceControlling(true);
-    try {
-      const response = await fetch("http://localhost:3000/api/test-device/control", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-api-key": "1027801124J",
-        },
-        body: JSON.stringify({ action }),
-      });
-      const data = await response.json();
-      if (!response.ok || !data.ok) {
-        throw new Error(data.error || "Error al controlar el dispositivo de prueba");
-      }
-      setTestDeviceData({ irms: data.irms, potencia: data.potencia, rele: data.rele });
-      setDeviceStatuses((prev) => ({ ...prev, [ISAAC_TEST_DEVICE_ID]: action }));
-    } catch (err) {
-      alert(err instanceof Error ? err.message : "Error al controlar el dispositivo de prueba");
-    } finally {
-      setTestDeviceControlling(false);
-    }
-  };
 
   const fetchDeviceStatus = async (dbId: number) => {
     try {
@@ -170,13 +97,7 @@ export function Devices() {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch(
-        `${API_BASE}?usuario=${encodeURIComponent(usuarioCedula)}`
-      );
-      if (!response.ok) {
-        throw new Error("No se pudieron cargar los dispositivos");
-      }
-      const data: Dispositivo[] = await response.json();
+      const data: Dispositivo[] = await getDevices(usuarioCedula);
       setDevices(data);
       data.forEach((d) => fetchDeviceStatus(d.id));
     } catch (err) {
@@ -187,11 +108,6 @@ export function Devices() {
   };
 
   const controlDevice = async (dbId: number, action: boolean) => {
-    if (dbId === ISAAC_TEST_DEVICE_ID) {
-      await controlTestDevice(action);
-      return;
-    }
-
     setControllingId(dbId);
     try {
       const response = await fetch(`${API_BASE}/${dbId}/control`, {
@@ -232,36 +148,21 @@ export function Devices() {
       nombre: device.nombre,
       modelo: device.modelo,
       device_id: device.device_id,
-      consumo: String(device.consumo ?? 0),
     });
     setDialogOpen(true);
   };
 
   const saveDevice = async () => {
-    if (!form.nombre.trim() || !form.modelo.trim() || !form.device_id.trim() || !form.consumo.trim()) {
-      alert("Completa nombre, modelo, consumo e ID del dispositivo");
-      return;
-    }
-    const wattage = Number(form.consumo);
-    if (Number.isNaN(wattage) || wattage < 0) {
-      alert("El consumo debe ser un número válido en vatios");
+    if (!form.nombre.trim() || !form.modelo.trim() || !form.device_id.trim()) {
+      alert("Completa nombre, modelo e ID del dispositivo");
       return;
     }
     setSaving(true);
     try {
-      const url = editingId ? `${API_BASE}/${editingId}` : API_BASE;
-      const method = editingId ? "PUT" : "POST";
-      const body = editingId
-        ? { ...form, consumo: wattage }
-        : { ...form, consumo: wattage, usuario_cedula: usuarioCedula };
-      const response = await fetch(url, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || "Error al guardar");
+      if (editingId) {
+        await updateDevice(editingId, form);
+      } else {
+        await createDevice({ ...form, usuario_cedula: usuarioCedula });
       }
       setDialogOpen(false);
       await fetchDevices();
@@ -277,11 +178,7 @@ export function Devices() {
       return;
     }
     try {
-      const response = await fetch(`${API_BASE}/${id}`, { method: "DELETE" });
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || "Error al eliminar");
-      }
+      await apiDeleteDevice(id);
       setDevices((prev) => prev.filter((d) => d.id !== id));
       setCo2Message(null);
     } catch (err) {
@@ -289,12 +186,7 @@ export function Devices() {
     }
   };
 
-  const displayedDevices =
-    usuarioCedula.toLowerCase() === "isaac"
-      ? [isaacTestDevice, ...devices]
-      : devices;
-
-  const filteredDevices = displayedDevices.filter(
+  const filteredDevices = devices.filter(
     (dev) =>
       dev.nombre.toLowerCase().includes(searchQuery.toLowerCase()) ||
       dev.modelo.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -340,8 +232,7 @@ export function Devices() {
 
       {error && (
         <div className="bg-rose-50 border border-rose-200 text-rose-700 rounded-xl p-4 text-sm">
-          {error}. Verifica MySQL y ejecuta{" "}
-          <code className="text-xs">npm run db:init</code> en backend.
+          {error}
         </div>
       )}
 
@@ -354,10 +245,7 @@ export function Devices() {
           {filteredDevices.map((device) => {
             const Icon = getIcon(device.modelo);
             const status = deviceStatuses[device.id];
-            const isControlling =
-              device.id === ISAAC_TEST_DEVICE_ID
-                ? testDeviceControlling
-                : controllingId === device.id;
+            const isControlling = controllingId === device.id;
             return (
               <div
                 key={device.id}
@@ -394,16 +282,6 @@ export function Devices() {
                 <h3 className="font-bold text-lg text-slate-800 truncate">{device.nombre}</h3>
                 <p className="text-sm text-slate-500 mt-1">Modelo: {device.modelo}</p>
                 <p className="text-sm text-slate-500 mt-1">Consumo: {device.consumo} W</p>
-                {device.id === ISAAC_TEST_DEVICE_ID ? (
-                  <div className="mt-3 text-sm text-slate-600 space-y-1">
-                    <p>
-                      Corriente: {testDeviceLoading ? 'Cargando...' : testDeviceData ? `${testDeviceData.irms.toFixed(3)} A` : '—'}
-                    </p>
-                    <p>
-                      Potencia: {testDeviceLoading ? 'Cargando...' : testDeviceData ? `${testDeviceData.potencia.toFixed(1)} W` : '—'}
-                    </p>
-                  </div>
-                ) : null}
                 <p className="text-xs text-slate-400 mt-2 truncate" title={device.device_id}>
                   ID: {device.device_id}
                 </p>
@@ -425,24 +303,22 @@ export function Devices() {
                   </button>
                 </div>
 
-                {device.id !== ISAAC_TEST_DEVICE_ID ? (
-                  <div className="mt-3 flex flex-col gap-2">
-                    <button
-                      onClick={() => openEditDialog(device)}
-                      className="inline-flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-slate-700 border border-slate-200 bg-slate-50 rounded-xl hover:bg-slate-100 transition-colors"
-                    >
-                      <Pencil className="w-4 h-4" />
-                      Editar
-                    </button>
-                    <button
-                      onClick={() => deleteDevice(device.id)}
-                      className="inline-flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-rose-700 border border-rose-200 bg-rose-50 rounded-xl hover:bg-rose-100 transition-colors"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                      Eliminar
-                    </button>
-                  </div>
-                ) : null}
+                <div className="mt-3 flex flex-col gap-2">
+                  <button
+                    onClick={() => openEditDialog(device)}
+                    className="inline-flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-slate-700 border border-slate-200 bg-slate-50 rounded-xl hover:bg-slate-100 transition-colors"
+                  >
+                    <Pencil className="w-4 h-4" />
+                    Editar
+                  </button>
+                  <button
+                    onClick={() => deleteDevice(device.id)}
+                    className="inline-flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-rose-700 border border-rose-200 bg-rose-50 rounded-xl hover:bg-rose-100 transition-colors"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    Eliminar
+                  </button>
+                </div>
               </div>
             );
           })}
@@ -453,7 +329,7 @@ export function Devices() {
         <div className="text-center py-12 text-slate-500">
           <Power className="w-12 h-12 mx-auto text-slate-300 mb-3" />
           <p className="text-lg font-medium">No hay dispositivos</p>
-          <p className="text-sm">Agrega uno con nombre e ID de Tuya</p>
+          <p className="text-sm">Agrega uno con nombre e ID</p>
         </div>
       )}
 
@@ -464,7 +340,7 @@ export function Devices() {
               {editingId ? "Editar dispositivo" : "Nuevo dispositivo"}
             </DialogTitle>
             <DialogDescription>
-              Registra el nombre, modelo e ID del dispositivo en Tuya OpenAPI.
+              Registra el nombre, modelo e ID del dispositivo.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
@@ -488,19 +364,6 @@ export function Devices() {
                 onChange={(e) => setForm({ ...form, modelo: e.target.value })}
                 className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
                 placeholder="Ej. light, network, hvac"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                Consumo (W)
-              </label>
-              <input
-                type="number"
-                min="0"
-                value={form.consumo}
-                onChange={(e) => setForm({ ...form, consumo: e.target.value })}
-                className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
-                placeholder="Ej. 120"
               />
             </div>
             <div>

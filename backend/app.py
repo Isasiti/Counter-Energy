@@ -17,6 +17,8 @@ def create_app(config_name='development'):
     # Registrar blueprints
     from routes.auth import auth_bp
     app.register_blueprint(auth_bp)
+    from routes.dispositivos import dispositivos_bp
+    app.register_blueprint(dispositivos_bp)
     
     # Conectar a la base de datos al iniciar
     @app.before_request
