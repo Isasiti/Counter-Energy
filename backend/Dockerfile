@@ -1,19 +1,16 @@
 # Backend Dockerfile
 FROM node:20-alpine
 
+RUN corepack enable && corepack prepare pnpm@latest --activate
+
 WORKDIR /app
 
-# Copy package files
-COPY package*.json ./
+COPY package.json pnpm-lock.yaml* ./
 
-# Install dependencies
-RUN npm ci
+RUN pnpm install --frozen-lockfile || pnpm install
 
-# Copy source code
 COPY . .
 
-# Expose port (adjust as needed)
 EXPOSE 3000
 
-# Start the backend
-CMD ["npm", "start"]
+CMD ["pnpm", "start"]

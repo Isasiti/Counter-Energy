@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { 
   AreaChart, 
   Area, 
@@ -20,6 +21,32 @@ const data = [
 ];
 
 export function Dashboard() {
+  const usuarioCedula = sessionStorage.getItem("usuarioCedula") || "";
+  const [totalKwh, setTotalKwh] = useState(0);
+  const [totalPrice, setTotalPrice] = useState(0);
+
+  useEffect(() => {
+    if (!usuarioCedula) {
+      return;
+    }
+    fetch(`http://localhost:3000/api/dispositivos/consumo-hoy?usuario=${encodeURIComponent(usuarioCedula)}`)
+      .then((res) => res.json())
+      .then((data) => {
+        setTotalKwh(Number(data.totalKwh) || 0);
+        setTotalPrice(Number(data.totalPrice) || 0);
+      })
+      .catch(() => {
+        setTotalKwh(0);
+        setTotalPrice(0);
+      });
+  }, [usuarioCedula]);
+
+  const formattedPrice = new Intl.NumberFormat("es-CO", {
+    style: "currency",
+    currency: "COP",
+    maximumFractionDigits: 0,
+  }).format(totalPrice);
+
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
       {/* Welcome Card */}
@@ -33,7 +60,7 @@ export function Dashboard() {
         </div>
         <div className="relative z-10 p-8 sm:p-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
           <div>
-            <h2 className="text-3xl font-bold mb-2">¡Hola, Juan!</h2>
+            <h2 className="text-3xl font-bold mb-2">¡Hola,Isaac!</h2>
             <p className="text-emerald-100 max-w-md">Tu hogar inteligente está funcionando eficientemente hoy. Has ahorrado un 12% de energía esta semana.</p>
           </div>
           <div className="flex gap-4">
@@ -62,7 +89,7 @@ export function Dashboard() {
           </div>
           <div className="flex items-end justify-between mt-auto">
             <div>
-              <span className="text-4xl font-bold text-slate-800">14.2</span>
+              <span className="text-4xl font-bold text-slate-800">{totalKwh.toFixed(1)}</span>
               <span className="text-slate-500 ml-1">kWh</span>
             </div>
             <div className="flex items-center text-rose-500 text-sm font-medium bg-rose-50 px-2 py-1 rounded-lg">
@@ -81,8 +108,7 @@ export function Dashboard() {
           </div>
           <div className="flex items-end justify-between mt-auto">
             <div>
-              <span className="text-4xl font-bold text-slate-800">$42</span>
-              <span className="text-slate-500 ml-1">.50</span>
+              <span className="text-4xl font-bold text-slate-800">{formattedPrice}</span>
             </div>
             <div className="flex items-center text-emerald-500 text-sm font-medium bg-emerald-50 px-2 py-1 rounded-lg">
               <TrendingDown className="w-4 h-4 mr-1" />

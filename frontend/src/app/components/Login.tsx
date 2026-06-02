@@ -1,21 +1,35 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { Zap } from "lucide-react";
+
+const API_AUTH = "http://localhost:3000/api/auth/login";
 
 export function Login({ onLogin }: { onLogin: () => void }) {
   const [cedula, setCedula] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (cedula === "1078458181" && password === "Si") {
+    setLoading(true);
+    setError("");
+    try {
+      const response = await fetch(API_AUTH, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cedula, password }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || "Credenciales incorrectas");
+      }
+      sessionStorage.setItem("usuarioCedula", data.cedula);
+      sessionStorage.setItem("usuarioEmail", data.correoelectronico);
       onLogin();
-    } else if (cedula === "1021922197" && password == "No") {
-      onLogin();
-    } else if (cedula === "Admin123" && password == "Admin123") {
-      onLogin();
-    } else {
-      setError("Credenciales incorrectas");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error al iniciar sesión");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -32,8 +46,8 @@ export function Login({ onLogin }: { onLogin: () => void }) {
 
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
-            <label htmlFor="cedula" className="block text-sm font-medium text-slate-700 mb-2">
-              Cédula
+            <label htmlFor="Nombre de Usuario" className="block text-sm font-medium text-slate-700 mb-2">
+              Nombre de Usuario
             </label>
             <input
               id="cedula"
@@ -41,7 +55,7 @@ export function Login({ onLogin }: { onLogin: () => void }) {
               value={cedula}
               onChange={(e) => setCedula(e.target.value)}
               className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
-              placeholder="Ingresa tu cédula"
+              placeholder="Ingresa tu nombre de usuario"
               required
             />
           </div>
@@ -69,9 +83,10 @@ export function Login({ onLogin }: { onLogin: () => void }) {
 
           <button
             type="submit"
-            className="w-full bg-emerald-600 text-white py-3 px-4 rounded-xl font-medium hover:bg-emerald-700 transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+            disabled={loading}
+            className="w-full bg-emerald-600 text-white py-3 px-4 rounded-xl font-medium hover:bg-emerald-700 transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500/20 disabled:opacity-50"
           >
-            Iniciar Sesión
+            {loading ? "Ingresando..." : "Iniciar Sesión"}
           </button>
         </form>
       </div>

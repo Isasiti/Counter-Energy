@@ -17,7 +17,6 @@ function cn(...inputs: (string | undefined | null | false)[]) {
 const navItems = [
   { icon: Home, label: "Resumen", to: "/" },
   { icon: Cpu, label: "Dispositivos", to: "/devices" },
-  { icon: BarChart3, label: "Analíticas", to: "/analytics" },
 ];
 
 export function Layout() {
