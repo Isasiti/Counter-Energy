@@ -1,9 +1,9 @@
-import { Outlet, NavLink } from "react-router";
+import { Outlet, NavLink, useNavigate } from "react-router";
 import { 
   Home, 
   Cpu, 
   BarChart3, 
-  Settings, 
+  LogOut,
   Zap,
   Bell
 } from "lucide-react";
@@ -17,10 +17,21 @@ function cn(...inputs: (string | undefined | null | false)[]) {
 const navItems = [
   { icon: Home, label: "Resumen", to: "/" },
   { icon: Cpu, label: "Dispositivos", to: "/devices" },
-  { icon: BarChart3, label: "Analíticas", to: "/analytics" },
 ];
 
 export function Layout() {
+  const navigate = useNavigate();
+  const usuarioNombre = localStorage.getItem("usuarioNombre") || "Usuario";
+  const iniciales = usuarioNombre.substring(0, 2).toUpperCase();
+
+  const handleLogout = () => {
+    localStorage.removeItem("usuarioCedula");
+    localStorage.removeItem("usuarioEmail");
+    localStorage.removeItem("usuarioNombre");
+    navigate("/");
+    window.location.reload();
+  };
+
   return (
     <div className="flex h-screen bg-slate-50 text-slate-900 overflow-hidden font-sans">
       {/* Sidebar */}
@@ -50,9 +61,9 @@ export function Layout() {
           ))}
         </nav>
         <div className="p-4 border-t border-slate-100">
-          <button className="flex items-center gap-3 px-4 py-3 w-full rounded-xl text-slate-500 hover:bg-slate-50 hover:text-slate-900 transition-colors font-medium">
-            <Settings className="w-5 h-5" />
-            Configuración
+          <button onClick={handleLogout} className="flex items-center gap-3 px-4 py-3 w-full rounded-xl text-slate-500 hover:bg-slate-50 hover:text-slate-900 transition-colors font-medium">
+            <LogOut className="w-5 h-5" />
+            Cerrar Sesión
           </button>
         </div>
       </aside>
@@ -74,7 +85,7 @@ export function Layout() {
               <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-rose-500 rounded-full"></span>
             </button>
             <div className="w-8 h-8 rounded-full bg-emerald-100 border border-emerald-200 flex items-center justify-center text-emerald-700 font-bold text-sm">
-              JA
+              {iniciales}
             </div>
           </div>
         </header>

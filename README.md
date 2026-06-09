@@ -5,7 +5,21 @@
 
   ## Running the code
 
-  Run `npm i` to install the dependencies.
+  ### Frontend
+  ```bash
+  cd frontend
+  pnpm install
+  pnpm run dev
+  ```
 
-  Run `npm run dev` to start the development server.
+  ### Backend (MySQL + Tuya OpenAPI)
+  1. Configura `backend/.env` (MySQL y `TUYA_API_KEY` / `TUYA_API_SECRET`).
+  2. Inicializa la base de datos e inicia el servidor:
+  ```bash
+  cd backend
+  npm install
+  npm run db:init
+  npm start
+  ```
+  Usuario de prueba: cédula `isaac`, contraseña `isaac`.
   
