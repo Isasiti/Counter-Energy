@@ -14,7 +14,7 @@ import {
   Loader2,
   type LucideIcon,
 } from "lucide-react";
-import { getDevices, createDevice, updateDevice, deleteDevice as apiDeleteDevice } from "../../lib/devicesApi";
+import { getDevices, createDevice, updateDevice, deleteDevice as apiDeleteDevice, updateConsumption } from "../../lib/devicesApi";
 import { clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 import {
@@ -27,6 +27,8 @@ import {
 } from "./ui/dialog";
 
 const API_BASE = "http://localhost:3000/api/dispositivos";
+const POWER_MULTIPLIER = 1; // Multiplicador para convertir potencia a consumo
+const UPDATE_INTERVAL = 5000; // 10 segundos
 
 interface Dispositivo {
   id: number;
@@ -70,6 +72,8 @@ export function Devices() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [deviceStatuses, setDeviceStatuses] = useState<Record<number, boolean | null>>({});
+  const [deviceConsumptions, setDeviceConsumptions] = useState<Record<number, number>>({});
+  const [totalConsumption, setTotalConsumption] = useState<number>(0);
   const [controllingId, setControllingId] = useState<number | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -81,6 +85,14 @@ export function Devices() {
     fetchDevices();
   }, []);
 
+  // Actualizar consumo cada 10 segundos
+  useEffect(() => {
+    const interval = setInterval(() => {
+      fetchAllConsumptions();
+    }, UPDATE_INTERVAL);
+
+    return () => clearInterval(interval);
+  }, [devices]);
 
   const fetchDeviceStatus = async (dbId: number) => {
     try {
@@ -88,8 +100,39 @@ export function Devices() {
       if (!response.ok) return;
       const data = await response.json();
       setDeviceStatuses((prev) => ({ ...prev, [dbId]: data.status }));
+      
+      // Calcular consumo = potencia * POWER_MULTIPLIER
+      if (data.potencia !== undefined && data.potencia !== null) {
+        const consumo = data.potencia * POWER_MULTIPLIER;
+        setDeviceConsumptions((prev) => ({ ...prev, [dbId]: consumo }));
+        
+        // Guardar en BD
+        try {
+          await updateConsumption(dbId, consumo);
+        } catch (err) {
+          console.error(`Error guardando consumo para dispositivo ${dbId}:`, err);
+        }
+      }
     } catch {
       setDeviceStatuses((prev) => ({ ...prev, [dbId]: null }));
+    }
+  };
+
+  const fetchAllConsumptions = async () => {
+    try {
+      if (devices.length === 0) return;
+      
+      devices.forEach((device) => {
+        fetchDeviceStatus(device.id);
+      });
+      
+      // Calcular total
+      const total = devices.reduce((sum, device) => {
+        return sum + (deviceConsumptions[device.id] || 0);
+      }, 0);
+      setTotalConsumption(total);
+    } catch (err) {
+      console.error("Error actualizando consumos:", err);
     }
   };
 
@@ -99,7 +142,11 @@ export function Devices() {
     try {
       const data: Dispositivo[] = await getDevices(usuarioCedula);
       setDevices(data);
-      data.forEach((d) => fetchDeviceStatus(d.id));
+      
+      // Cargar consumos iniciales
+      data.forEach((d) => {
+        fetchDeviceStatus(d.id);
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error desconocido");
     } finally {
@@ -201,8 +248,12 @@ export function Devices() {
           <p className="text-slate-500 mt-1">
             Usuario: {usuarioCedula || "—"} · Control vía Tuya OpenAPI
           </p>
+          <div className="mt-3 inline-flex items-center gap-2 rounded-2xl bg-blue-50 border border-blue-200 px-4 py-3 text-sm text-blue-700">
+            <span>⚡</span>
+            <span>Consumo Total: <strong>{totalConsumption.toFixed(2)}</strong> (actualizado cada 10s)</span>
+          </div>
           {co2Message ? (
-            <div className="mt-3 inline-flex items-center gap-2 rounded-2xl bg-emerald-50 border border-emerald-200 px-4 py-3 text-sm text-emerald-700">
+            <div className="mt-3 inline-flex items-center gap-2 rounded-2xl bg-emerald-50 border border-emerald-200 px-4 py-3 text-sm text-emerald-700 ml-3">
               <span>🌿</span>
               <span>{co2Message}</span>
             </div>
@@ -281,7 +332,11 @@ export function Devices() {
 
                 <h3 className="font-bold text-lg text-slate-800 truncate">{device.nombre}</h3>
                 <p className="text-sm text-slate-500 mt-1">Modelo: {device.modelo}</p>
-                <p className="text-sm text-slate-500 mt-1">Consumo: {device.consumo} W</p>
+                <div className="mt-2 p-3 bg-gradient-to-r from-blue-50 to-blue-100 rounded-lg border border-blue-200">
+                  <p className="text-xs text-blue-600 font-semibold">Consumo Actual</p>
+                  <p className="text-lg font-bold text-blue-800">{(deviceConsumptions[device.id] || 0).toFixed(2)}</p>
+                  <p className="text-xs text-blue-600">Potencia </p>
+                </div>
                 <p className="text-xs text-slate-400 mt-2 truncate" title={device.device_id}>
                   ID: {device.device_id}
                 </p>

@@ -3,7 +3,13 @@ from flask_cors import CORS
 from database import db
 from config import config
 import os
+import os
+from dotenv import load_dotenv
 
+load_dotenv()
+
+# Si no encuentra la variable DB_HOST, por defecto usará 'localhost' (así te sigue funcionando a ti en tu PC)
+db_host = os.getenv('DB_HOST', 'localhost')
 def create_app(config_name='development'):
     """Factory para crear la aplicación Flask"""
     app = Flask(__name__)

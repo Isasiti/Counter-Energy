@@ -7,11 +7,11 @@ WORKDIR /app
 
 COPY package.json pnpm-lock.yaml* ./
 
-RUN pnpm install --frozen-lockfile || pnpm install
+RUN npm install --frozen-lockfile || pnpm install
 
 COPY . .
 
-RUN pnpm run build
+RUN npm run build
 
 # Production stage
 FROM node:20-alpine
@@ -22,10 +22,10 @@ WORKDIR /app
 
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/package.json ./
-COPY --from=builder /app/pnpm-lock.yaml* ./
+COPY --from=builder /app/npm-lock.yaml* ./
 
-RUN pnpm install --prod --frozen-lockfile || pnpm install --prod
+RUN npm install --production --frozen-lockfile || npm install --production
 
 EXPOSE 5173
 
-CMD ["pnpm", "run", "preview"]
+CMD ["npm", "run", "preview"]

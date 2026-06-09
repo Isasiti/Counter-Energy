@@ -8,7 +8,7 @@ import {
   Tooltip, 
   ResponsiveContainer 
 } from "recharts";
-import { Zap, DollarSign, TrendingDown, Thermometer, BatteryFull } from "lucide-react";
+import { Zap, DollarSign, TrendingDown, Thermometer, BatteryFull, Activity } from "lucide-react";
 
 const data = [
   { name: "Lun", hw: 14.5 },
@@ -20,16 +20,21 @@ const data = [
   { name: "Dom", hw: 17.5 },
 ];
 
+const UPDATE_INTERVAL = 10000; // 10 segundos
+
 export function Dashboard() {
   const usuarioCedula = localStorage.getItem("usuarioCedula") || "";
   const usuarioNombre = localStorage.getItem("usuarioNombre") || "Usuario";
   const [totalKwh, setTotalKwh] = useState(0);
   const [totalPrice, setTotalPrice] = useState(0);
+  const [currentConsumption, setCurrentConsumption] = useState(0);
 
   useEffect(() => {
     if (!usuarioCedula) {
       return;
     }
+    
+    // Obtener consumo del día
     fetch(`http://localhost:3000/api/dispositivos/consumo-hoy?usuario=${encodeURIComponent(usuarioCedula)}`)
       .then((res) => res.json())
       .then((data) => {
@@ -42,11 +47,43 @@ export function Dashboard() {
       });
   }, [usuarioCedula]);
 
+  // Actualizar consumo actual cada 10 segundos
+  useEffect(() => {
+    if (!usuarioCedula) {
+      return;
+    }
+
+    const fetchCurrentConsumption = () => {
+      fetch(`http://localhost:3000/api/dispositivos/consumo-actual?usuario=${encodeURIComponent(usuarioCedula)}`)
+        .then((res) => res.json())
+        .then((data) => {
+          setCurrentConsumption(Number(data.total_consumo) || 0);
+        })
+        .catch(() => {
+          setCurrentConsumption(0);
+        });
+    };
+
+    // Primera carga
+    fetchCurrentConsumption();
+
+    // Actualizar cada 10 segundos
+    const interval = setInterval(fetchCurrentConsumption, UPDATE_INTERVAL);
+
+    return () => clearInterval(interval);
+  }, [usuarioCedula]);
+
   const formattedPrice = new Intl.NumberFormat("es-CO", {
     style: "currency",
     currency: "COP",
     maximumFractionDigits: 0,
   }).format(totalPrice);
+
+  // Potencia es el consumo actual / 879
+  const potenciaW = currentConsumption; // Convertir a vatios
+  
+  // Gasto es consumo × 879
+  const gastoEstimado = (currentConsumption/1000) * 879;
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
@@ -80,22 +117,21 @@ export function Dashboard() {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col">
           <div className="flex items-center gap-3 text-slate-500 mb-4">
-            <div className="p-2 bg-emerald-50 rounded-xl text-emerald-600">
-              <Zap className="w-5 h-5" />
+            <div className="p-2 bg-red-50 rounded-xl text-red-600">
+              <Activity className="w-5 h-5 animate-pulse" />
             </div>
-            <span className="font-medium">Consumo Hoy</span>
+            <span className="font-medium">Potencia Actual</span>
           </div>
           <div className="flex items-end justify-between mt-auto">
             <div>
-              <span className="text-4xl font-bold text-slate-800">{totalKwh.toFixed(1)}</span>
-              <span className="text-slate-500 ml-1">kWh</span>
+              <span className="text-4xl font-bold text-slate-800">{potenciaW.toFixed(2)}</span>
+              <span className="text-slate-500 ml-1">w</span>
             </div>
-            <div className="flex items-center text-rose-500 text-sm font-medium bg-rose-50 px-2 py-1 rounded-lg">
-              <TrendingDown className="w-4 h-4 mr-1 rotate-180" />
-              <span>+2.4%</span>
+            <div className="text-xs font-medium bg-red-100 text-red-700 px-2 py-1 rounded-lg">
+              En vivo
             </div>
           </div>
         </div>
@@ -105,15 +141,35 @@ export function Dashboard() {
             <div className="p-2 bg-blue-50 rounded-xl text-blue-600">
               <DollarSign className="w-5 h-5" />
             </div>
-            <span className="font-medium">Gasto Estimado</span>
+            <span className="font-medium">Consumo Total</span>
           </div>
           <div className="flex items-end justify-between mt-auto">
             <div>
-              <span className="text-4xl font-bold text-slate-800">{formattedPrice}</span>
+              <span className="text-4xl font-bold text-slate-800">{((potenciaW/1000)*890).toFixed(2)}</span>
+              <span className="text-slate-500 ml-1">Pesos</span>
             </div>
             <div className="flex items-center text-emerald-500 text-sm font-medium bg-emerald-50 px-2 py-1 rounded-lg">
               <TrendingDown className="w-4 h-4 mr-1" />
-              <span>-5.1%</span>
+              <span> </span>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col">
+          <div className="flex items-center gap-3 text-slate-500 mb-4">
+            <div className="p-2 bg-emerald-50 rounded-xl text-emerald-600">
+              <Zap className="w-5 h-5" />
+            </div>
+            <span className="font-medium">Consumo Hoy</span>
+          </div>
+          <div className="flex items-end justify-between mt-auto">
+            <div>
+              <span className="text-4xl font-bold text-slate-800">{(potenciaW/1000).toFixed(3)}</span>
+              <span className="text-slate-500 ml-1">kWh</span>
+            </div>
+            <div className="flex items-center text-rose-500 text-sm font-medium bg-rose-50 px-2 py-1 rounded-lg">
+              <TrendingDown className="w-4 h-4 mr-1 rotate-180" />
+              <span>+2.4%</span>
             </div>
           </div>
         </div>
@@ -127,7 +183,7 @@ export function Dashboard() {
           </div>
           <div className="flex items-end justify-between mt-auto">
             <div>
-              <span className="text-4xl font-bold text-slate-800">8</span>
+              <span className="text-4xl font-bold text-slate-800">1</span>
               <span className="text-slate-500 ml-1">/ 12</span>
             </div>
             <button className="text-sm text-emerald-600 font-medium hover:text-emerald-700 transition-colors">
@@ -179,7 +235,7 @@ export function Dashboard() {
               <Area 
                 type="monotone" 
                 dataKey="hw" 
-                stroke="#10b981" 
+                stroke="#10b981"
                 strokeWidth={3}
                 fillOpacity={1} 
                 fill="url(#colorHw)" 

@@ -1,5 +1,6 @@
 from flask import Blueprint, request, jsonify
 from database import db
+from remote_controller import remote_controller
 
 dispositivos_bp = Blueprint('dispositivos', __name__, url_prefix='/api/dispositivos')
 
@@ -87,19 +88,27 @@ def delete_dispositivo(device_id: int):
 @dispositivos_bp.route('/<int:device_id>/status', methods=['GET'])
 def dispositivo_status(device_id: int):
     try:
-        # Intentar devolver un estado si existe en la tabla; si no, retornar null
-        fetch_q = "SELECT * FROM dispositivos WHERE id = %s"
+        # Verificar que el dispositivo existe en la BD
+        fetch_q = "SELECT id, device_id FROM dispositivos WHERE id = %s"
         result = db.execute_query(fetch_q, (device_id,))
         if not result:
             return jsonify({'error': 'Dispositivo no encontrado'}), 404
-        row = result[0]
-        for key in ('status', 'estado', 'rele', 'on', 'activo'):
-            if key in row:
-                return jsonify({'status': bool(row[key])}), 200
-        return jsonify({'status': None}), 200
+        
+        # Obtener estado del dispositivo remoto
+        status_data = remote_controller.get_status()
+        if status_data is None:
+            return jsonify({'status': None, 'error': 'No se pudo conectar al dispositivo'}), 503
+        
+        # Extraer estado del relé
+        rele_state = status_data.get('rele', None)
+        return jsonify({
+            'status': bool(rele_state) if rele_state is not None else None,
+            'potencia': status_data.get('potencia', 0),
+            'irms': status_data.get('irms', 0)
+        }), 200
     except Exception as e:
         print(f"Error consultando estado: {e}")
-        return jsonify({'status': None}), 500
+        return jsonify({'status': None, 'error': 'Error interno del servidor'}), 500
 
 
 @dispositivos_bp.route('/<int:device_id>/control', methods=['POST'])
@@ -108,8 +117,91 @@ def dispositivo_control(device_id: int):
         data = request.get_json()
         if not data or 'action' not in data:
             return jsonify({'error': 'Campo action requerido'}), 400
-        # Control físico no implementado: placeholder
-        return jsonify({'success': False, 'error': 'Control no implementado en backend'}), 501
+        
+        # Verificar que el dispositivo existe en la BD
+        fetch_q = "SELECT id, nombre FROM dispositivos WHERE id = %s"
+        result = db.execute_query(fetch_q, (device_id,))
+        if not result:
+            return jsonify({'error': 'Dispositivo no encontrado'}), 404
+        
+        device = result[0]
+        action = data.get('action')  # True = encender, False = apagar
+        
+        # Ejecutar control en el dispositivo remoto
+        success = remote_controller.control(action)
+        
+        if success:
+            # Calcular ahorros (placeholder - se puede mejorar)
+            response_data = {
+                'success': True,
+                'device_id': device_id,
+                'nombre': device['nombre'],
+                'action': 'encendido' if action else 'apagado'
+            }
+            
+            # Si se apagó, incluir información de ahorro (opcional)
+            if not action:
+                response_data['saved'] = {
+                    'co2Kg': 0.5,  # Placeholder: calcular según consumo real
+                    'trees': 0.01
+                }
+            
+            return jsonify(response_data), 200
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'No se pudo ejecutar la acción en el dispositivo remoto',
+                'device_id': device_id
+            }), 503
     except Exception as e:
         print(f"Error controlando dispositivo: {e}")
         return jsonify({'success': False, 'error': 'Error interno del servidor'}), 500
+
+
+@dispositivos_bp.route('/<int:device_id>/consumo', methods=['POST'])
+def update_consumo(device_id: int):
+    """Actualiza el consumo del dispositivo en la BD"""
+    try:
+        data = request.get_json()
+        if not data or 'consumo' not in data:
+            return jsonify({'error': 'Campo consumo requerido'}), 400
+        
+        consumo = float(data.get('consumo', 0))
+        
+        # Verificar que el dispositivo existe
+        fetch_q = "SELECT id FROM dispositivos WHERE id = %s"
+        result = db.execute_query(fetch_q, (device_id,))
+        if not result:
+            return jsonify({'error': 'Dispositivo no encontrado'}), 404
+        
+        # Actualizar consumo en la BD
+        update_q = "UPDATE dispositivos SET consumo = %s WHERE id = %s"
+        affected = db.execute_update(update_q, (consumo, device_id))
+        
+        if affected:
+            return jsonify({'success': True, 'consumo': consumo}), 200
+        else:
+            return jsonify({'error': 'No se pudo actualizar el consumo'}), 400
+    except Exception as e:
+        print(f"Error actualizando consumo: {e}")
+        return jsonify({'error': 'Error interno del servidor'}), 500
+
+
+@dispositivos_bp.route('/consumo-actual', methods=['GET'])
+def get_consumo_actual():
+    """Obtiene el consumo actual de todos los dispositivos del usuario"""
+    try:
+        usuario = request.args.get('usuario', '')
+        if not usuario:
+            return jsonify({'error': 'Usuario requerido'}), 400
+        
+        query = "SELECT SUM(consumo) as total_consumo FROM dispositivos WHERE usuario_cedula = %s"
+        result = db.execute_query(query, (usuario,))
+        
+        if result:
+            total_consumo = result[0].get('total_consumo') or 0
+            return jsonify({'total_consumo': float(total_consumo)}), 200
+        return jsonify({'total_consumo': 0}), 200
+    except Exception as e:
+        print(f"Error obteniendo consumo actual: {e}")
+        return jsonify({'error': 'Error interno del servidor'}), 500
