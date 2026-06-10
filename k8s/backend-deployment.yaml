@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
       - name: flask-app
-        image: tu-usuario-dockerhub/counter-energy-backend:latest
+        image: isasiti/counter-energy-backend:latest
         imagePullPolicy: Always
         ports:
         - containerPort: 3000
