@@ -29,4 +29,4 @@ RUN npm install --frozen-lockfile || pnpm install
 
 EXPOSE 5173
 
-CMD ["npm", "run", "preview"]
+CMD ["npm", "run", "preview", "--", "--host", "0.0.0.0", "--port", "5173"]
