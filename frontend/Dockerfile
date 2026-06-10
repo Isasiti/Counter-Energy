@@ -24,7 +24,8 @@ COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/package.json ./
 COPY --from=builder /app/npm-lock.yaml* ./
 
-RUN npm install --production --frozen-lockfile || npm install --production
+# QUITAMOS el "--production" para que sí instale Vite en la caja final
+RUN npm install --frozen-lockfile || pnpm install
 
 EXPOSE 5173
 
