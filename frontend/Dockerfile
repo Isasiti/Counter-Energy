@@ -15,18 +15,18 @@ RUN npm run build
 
 # Production stage
 FROM node:20-alpine
-
-RUN corepack enable && corepack prepare pnpm@latest --activate
-
 WORKDIR /app
 
+# Copiamos los archivos necesarios
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/package.json ./
-COPY --from=builder /app/npm-lock.yaml* ./
+COPY --from=builder /app/package-lock.json* ./ 
 
-# QUITAMOS el "--production" para que sí instale Vite en la caja final
-RUN npm install --frozen-lockfile || pnpm install
+# Nos aseguramos de tener Vite instalado
+RUN npm install
 
+# Exponemos el puerto estándar de Vite Dev (5173)
 EXPOSE 5173
 
-CMD ["npm", "run", "preview", "--", "--host", "0.0.0.0", "--port", "5173"]
+# ¡CLAVE! Añadimos -- --host para que escuche las peticiones de Minikube
+CMD ["npm", "run", "dev", "--", "--host"]
