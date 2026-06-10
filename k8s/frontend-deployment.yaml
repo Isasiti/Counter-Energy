@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: counter-energy-frontend
+  namespace: counter-energy
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+    spec:
+      containers:
+      - name: node-app
+        image: isasiti/counter-energy-frontend:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 5173
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend-service
+  namespace: counter-energy
+spec:
+  ports:
+  - port: 5173
+    targetPort: 5173
+  selector:
+    app: frontend

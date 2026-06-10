@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: counter-energy-backend
+  namespace: counter-energy
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      containers:
+      - name: flask-app
+        image: tu-usuario-dockerhub/counter-energy-backend:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 3000
+        env:
+        #CAMBIO CLAVE!
+        - name: DB_HOST
+          value: "host.minikube.internal" # Enruta el tráfico hacia tu Windows local
+        - name: DB_USER
+          value: "root" # El usuario de tu MySQL de Windows
+        - name: DB_PASSWORD
+          value: "isasito2122" # La contraseña de tu MySQL de Windows
+        - name: DB_NAME
+          value: "counterenergy" # Tu base de datos local
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend-service
+  namespace: counter-energy
+spec:
+  ports:
+  - port: 3000
+    targetPort: 3000
+  selector:
+    app: backend
